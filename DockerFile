@@ -1,0 +1,39 @@
+FROM ubuntu
+LABEL maintainer "Diego Falcone <falconediego@gmail.com>"
+LABEL version="3.0.0"
+LABEL description="Kura 3.0.0 emulator on ubuntu"
+
+ENV \
+  MAVEN_PROPS=-DskipTests \
+  KURA_COMMIT=2f7ce1e3fa3b33db5d9e7623c676d34c727709d4
+
+RUN apt-get update
+RUN apt-get -y install wget
+RUN apt-get -y install git
+RUN apt-get -y install dmidecode
+RUN apt-get -y install unzip
+RUN apt-get -y install openjdk-8-jdk
+RUN apt-get -y install dos2unix
+RUN apt-get -y install libnet-ifconfig-wrapper-perl
+RUN apt-get -y install iputils-ping
+RUN mkdir /home/lib/ && cd /home/lib/ && wget https://archive.apache.org/dist/maven/maven-3/3.5.2/binaries/apache-maven-3.5.2-bin.zip \
+    && unzip apache-maven-3.5.2-bin.zip
+
+COPY kura.patch /
+
+RUN mkdir /home/root/ && mkdir /home/root/eclipse/
+RUN cd /home/root/eclipse/ && git clone -b release-3.0.0 https://github.com/eclipse/kura.git
+RUN cd /home/root/eclipse/kura && git apply --verbose /kura.patch
+RUN cd /home/root/eclipse/kura/target-platform/ \
+    && /home/lib/apache-maven-3.5.2/bin/mvn clean install $MAVEN_PROPS
+RUN cd /home/root/eclipse/kura/kura/ \
+    && sed -i 's/3.4.0-SNAPSHOT/3.4.0/g' manifest_pom.xml \
+    && /home/lib/apache-maven-3.5.2/bin/mvn -f manifest_pom.xml clean install $MAVEN_PROPS
+RUN cd /home/root/eclipse/kura/kura/distrib/ \
+    && /home/lib/apache-maven-3.5.2/bin/mvn clean install
+RUN cd /home/root/eclipse/kura/kura/distrib/target/ \
+    && ./kura_3.0.0_pcengines-apu-nn_installer.sh
+
+EXPOSE 8080 1450
+
+ENTRYPOINT ["/opt/eclipse/kura/bin/start_kura.sh"]
